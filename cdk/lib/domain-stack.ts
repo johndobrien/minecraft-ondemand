@@ -37,6 +37,7 @@ export class DomainStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+
     /* Create policy to allow route53 to log to cloudwatch */
     const policyName = 'cw.r.route53-dns';
     const dnsWriteToCw = [
@@ -108,17 +109,22 @@ export class DomainStack extends Stack {
 
     /* Set dependency on A record to ensure it is removed first on deletion */
     aRecord.node.addDependency(subdomainHostedZone);
-
+    const lambdaLogGroup = new logs.LogGroup(this, `${id}-LanuncherLambdaLogGroup`, {
+      logGroupName: `/aws/lambda/${id}-LauncherLambda`,
+      retention: RetentionDays.THREE_DAYS,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+      
     const launcherLambda = new lambda.Function(this, 'LauncherLambda', {
       code: lambda.Code.fromAsset(path.resolve(__dirname, '../../lambda')),
       handler: 'lambda_function.lambda_handler',
-      runtime: lambda.Runtime.PYTHON_3_8,
+      runtime: lambda.Runtime.PYTHON_3_10,
       environment: {
         REGION: config.serverRegion,
         CLUSTER: constants.CLUSTER_NAME,
         SERVICE: constants.SERVICE_NAME,
       },
-      logRetention: logs.RetentionDays.THREE_DAYS, // TODO: parameterize
+      logGroup: lambdaLogGroup,
     });
 
     /**

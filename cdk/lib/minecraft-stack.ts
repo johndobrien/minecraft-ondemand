@@ -17,6 +17,7 @@ import { constants } from './constants';
 import { SSMParameterReader } from './ssm-parameter-reader';
 import { StackConfig } from './types';
 import { getMinecraftServerConfig, isDockerInstalled } from './util';
+import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
 
 interface MinecraftStackProps extends StackProps {
   config: Readonly<StackConfig>;
@@ -84,7 +85,7 @@ export class MinecraftStack extends Stack {
     const cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: constants.CLUSTER_NAME,
       vpc,
-      containerInsights: true, // TODO: Add config for container insights
+      containerInsights: true, 
       enableFargateCapacityProviders: true,
     });
 
@@ -120,7 +121,10 @@ export class MinecraftStack extends Stack {
       'ServerContainer',
       {
         containerName: constants.MC_SERVER_CONTAINER_NAME,
-        image: ecs.ContainerImage.fromRegistry(minecraftServerConfig.image),
+        image: ecs.ContainerImage.fromAsset(
+          path.resolve(__dirname, '../../minecraft-server/'),
+          {platform: Platform.LINUX_AMD64}
+        ),  
         portMappings: [
           {
             containerPort: minecraftServerConfig.port,
@@ -159,6 +163,8 @@ export class MinecraftStack extends Stack {
       ec2.Peer.anyIpv4(),
       minecraftServerConfig.ingressRulePort
     );
+
+
 
     const minecraftServerService = new ecs.FargateService(
       this,
