@@ -17,7 +17,7 @@ import { constants } from './constants';
 import { SSMParameterReader } from './ssm-parameter-reader';
 import { StackConfig } from './types';
 import { getMinecraftServerConfig, isDockerInstalled } from './util';
-import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
+import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 
 interface MinecraftStackProps extends StackProps {
   config: Readonly<StackConfig>;
@@ -38,6 +38,7 @@ export class MinecraftStack extends Stack {
 
     const fileSystem = new efs.FileSystem(this, 'FileSystem', {
       vpc,
+      fileSystemName: "FileSystem",
       removalPolicy: RemovalPolicy.SNAPSHOT,
     });
 
@@ -51,36 +52,41 @@ export class MinecraftStack extends Stack {
       createAcl: {
         ownerGid: '1000',
         ownerUid: '1000',
-        permissions: '0755',
+        permissions: '0750',
       },
-    });
-
-    const efsReadWriteDataPolicy = new iam.Policy(this, 'DataRWPolicy', {
-      statements: [
-        new iam.PolicyStatement({
-          sid: 'AllowReadWriteOnEFS',
-          effect: iam.Effect.ALLOW,
-          actions: [
-            'elasticfilesystem:ClientMount',
-            'elasticfilesystem:ClientWrite',
-            'elasticfilesystem:DescribeFileSystems',
-          ],
-          resources: [fileSystem.fileSystemArn],
-          conditions: {
-            StringEquals: {
-              'elasticfilesystem:AccessPointArn': accessPoint.accessPointArn,
-            },
-          },
-        }),
-      ],
     });
 
     const ecsTaskRole = new iam.Role(this, 'TaskRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       description: 'Minecraft ECS task role',
+      inlinePolicies: {
+        TaskPolicy: new iam.PolicyDocument({
+        statements: [
+          new iam.PolicyStatement({
+            actions: [
+              'elasticfilesystem:ClientMount',
+              'elasticfilesystem:ClientWrite',
+              'elasticfilesystem:DescribeFileSystems',
+              'ecs:DescribeTasks',
+            ],
+            resources: ['*'],
+          }),
+          new iam.PolicyStatement({
+            actions: [
+              'ssmmessages:CreateSession',
+              'ssmmessages:TerminateSession',
+              'ssmmessages:OpenSession',
+              'logs:CreateLogStream',
+              'logs:PutLogEvents',
+            ],
+            resources: ['*'], 
+          }),
+        ],
+      }),
+      }
     });
 
-    efsReadWriteDataPolicy.attachToRole(ecsTaskRole);
+    
 
     const cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: constants.CLUSTER_NAME,
@@ -185,8 +191,8 @@ export class MinecraftStack extends Stack {
         serviceName: constants.SERVICE_NAME,
         desiredCount: 0,
         assignPublicIp: true,
-        enableExecuteCommand: true,
         securityGroups: [serviceSecurityGroup],
+        enableExecuteCommand: true,
       }
     );
 
