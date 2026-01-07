@@ -185,6 +185,7 @@ export class MinecraftStack extends Stack {
         serviceName: constants.SERVICE_NAME,
         desiredCount: 0,
         assignPublicIp: true,
+        enableExecuteCommand: true,
         securityGroups: [serviceSecurityGroup],
       }
     );
